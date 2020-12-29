@@ -22,7 +22,7 @@ const bool mqtt_retained = true;
 #define BASIC_TOPIC_STATUS BASIC_TOPIC "status/"
 
 const int PIN_MATRIX = 13; // D7
-const int PIN_ON = 5; // D1
+const int PIN_ON = 5;      // D1
 
 // MATRIX DECLARATION:
 // Parameter 1 = width of NeoPixel matrix
@@ -43,18 +43,20 @@ const int PIN_ON = 5; // D1
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 
-
 // Example for NeoPixel Shield.  In this application we'd like to use it
 // as a 5x8 tall matrix, with the USB port positioned at the top of the
 // Arduino.  When held that way, the first pixel is at the top right, and
 // lines are arranged in columns, progressive order.  The shield uses
 // 800 KHz (v2) pixels that expect GRB color data.
 Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(8, 32, PIN_MATRIX,
-  NEO_MATRIX_TOP  + NEO_MATRIX_RIGHT +
-  NEO_MATRIX_ROWS + NEO_MATRIX_ZIGZAG,
+  NEO_MATRIX_BOTTOM  + NEO_MATRIX_RIGHT +
+  NEO_MATRIX_ROWS    + NEO_MATRIX_ZIGZAG,
   NEO_GRB            + NEO_KHZ800);
 
 const uint8_t BRIGHTNESS_OFFSET = 7;
+const int CANDLE_HEIGHT = 5;
+const int HEIGHT_MAX = 32 - CANDLE_HEIGHT;
+const float HEIGHT_PERCENTAGE_FACTOR = 100.0 / HEIGHT_MAX;
 
 uint16_t hue = 0;
 uint8_t sat = 100;
@@ -64,7 +66,7 @@ boolean lit = true;
 boolean on = true;
 
 void setup() {
-  pinMode(LED_BUILTIN, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
+  pinMode(LED_BUILTIN, OUTPUT); // Initialize the BUILTIN_LED pin as an output
   pinMode(PIN_ON, OUTPUT);
   Serial.begin(115200);
   matrix.begin();
@@ -75,12 +77,15 @@ void setup() {
   matrix.show();
 
   // Optional functionnalities of EspMQTTClient
-  client.enableDebuggingMessages(); // Enable debugging messages sent to serial output
-  client.enableLastWillMessage(BASIC_TOPIC "connected", "0", mqtt_retained);  // You can activate the retain flag by setting the third parameter to true
+  client.enableDebuggingMessages();                                          // Enable debugging messages sent to serial output
+  client.enableLastWillMessage(BASIC_TOPIC "connected", "0", mqtt_retained); // You can activate the retain flag by setting the third parameter to true
 }
 
+float calc_height_to_percentage() { return height * HEIGHT_PERCENTAGE_FACTOR; }
+uint8_t calc_height_from_percentage(float percentage) { return percentage / HEIGHT_PERCENTAGE_FACTOR; }
+
 void onConnectionEstablished() {
-  client.subscribe(BASIC_TOPIC_SET "hue", [](const String & payload) {
+  client.subscribe(BASIC_TOPIC_SET "hue", [](const String &payload) {
     int parsed = strtol(payload.c_str(), 0, 10);
     int newValue = parsed % 360;
     if (hue != newValue) {
@@ -89,7 +94,7 @@ void onConnectionEstablished() {
     }
   });
 
-  client.subscribe(BASIC_TOPIC_SET "sat", [](const String & payload) {
+  client.subscribe(BASIC_TOPIC_SET "sat", [](const String &payload) {
     int parsed = strtol(payload.c_str(), 0, 10);
     int newValue = max(0, min(100, parsed));
     if (sat != newValue) {
@@ -98,7 +103,7 @@ void onConnectionEstablished() {
     }
   });
 
-  client.subscribe(BASIC_TOPIC_SET "bri", [](const String & payload) {
+  client.subscribe(BASIC_TOPIC_SET "bri", [](const String &payload) {
     int parsed = strtol(payload.c_str(), 0, 10);
     int newValue = max(0, min(255 - BRIGHTNESS_OFFSET, parsed));
     if (bri != newValue) {
@@ -107,7 +112,7 @@ void onConnectionEstablished() {
     }
   });
 
-  client.subscribe(BASIC_TOPIC_SET "on", [](const String & payload) {
+  client.subscribe(BASIC_TOPIC_SET "on", [](const String &payload) {
     boolean newValue = payload != "0";
     if (on != newValue) {
       on = newValue;
@@ -115,7 +120,7 @@ void onConnectionEstablished() {
     }
   });
 
-  client.subscribe(BASIC_TOPIC_SET "lit", [](const String & payload) {
+  client.subscribe(BASIC_TOPIC_SET "lit", [](const String &payload) {
     boolean newValue = payload != "0";
     if (lit != newValue) {
       lit = newValue;
@@ -123,12 +128,24 @@ void onConnectionEstablished() {
     }
   });
 
-  client.subscribe(BASIC_TOPIC_SET "height", [](const String & payload) {
+  client.subscribe(BASIC_TOPIC_SET "height", [](const String &payload) {
     int parsed = strtol(payload.c_str(), 0, 10);
-    int newValue = max(0, min(32 - 6, parsed));
+    int newValue = max(0, min(HEIGHT_MAX, parsed));
     if (height != newValue) {
       height = newValue;
       client.publish(BASIC_TOPIC_STATUS "height", String(height), mqtt_retained);
+      client.publish(BASIC_TOPIC_STATUS "height-percentage", String(calc_height_to_percentage()), mqtt_retained);
+    }
+  });
+
+  client.subscribe(BASIC_TOPIC_SET "height-percentage", [](const String &payload) {
+    float parsed = strtod(payload.c_str(), NULL);
+    float percentage = max(0.0f, min(100.0f, parsed));
+    int newValue = calc_height_from_percentage(percentage);
+    if (height != newValue) {
+      height = newValue;
+      client.publish(BASIC_TOPIC_STATUS "height", String(height), mqtt_retained);
+      client.publish(BASIC_TOPIC_STATUS "height-percentage", String(calc_height_to_percentage()), mqtt_retained);
     }
   });
 
@@ -137,6 +154,7 @@ void onConnectionEstablished() {
   client.publish(BASIC_TOPIC_STATUS "sat", String(sat), mqtt_retained);
   client.publish(BASIC_TOPIC_STATUS "bri", String(bri), mqtt_retained);
   client.publish(BASIC_TOPIC_STATUS "height", String(height), mqtt_retained);
+  client.publish(BASIC_TOPIC_STATUS "height-percentage", String(calc_height_to_percentage()), mqtt_retained);
   client.publish(BASIC_TOPIC_STATUS "lit", lit ? "1" : "0", mqtt_retained);
   client.publish(BASIC_TOPIC_STATUS "on", on ? "1" : "0", mqtt_retained);
 
@@ -158,7 +176,7 @@ void drawCandle(uint8_t brightness) {
 
   if (lit) {
     auto flame_color = ColorHSV(40 * 182, 255, brightness);
-    int flame_height = millis() % 5;
+    int flame_height = millis() % CANDLE_HEIGHT;
     int flame_direction = millis() % 4;
     int flame_move_height = millis() % 3;
 
