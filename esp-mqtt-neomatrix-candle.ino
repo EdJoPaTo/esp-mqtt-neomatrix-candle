@@ -207,7 +207,7 @@ void loop() {
   drawCandle(brightness);
   matrix.show();
 
-  delay(50);
+  delay(40);
 }
 
 uint16_t ColorHSV(uint16_t hue, uint8_t sat, uint8_t val) {
