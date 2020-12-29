@@ -61,7 +61,8 @@ const float HEIGHT_PERCENTAGE_FACTOR = 100.0 / HEIGHT_MAX;
 uint16_t hue = 0;
 uint8_t sat = 100;
 uint8_t bri = 20;
-uint8_t height = 10;
+uint8_t height_target = 10;
+uint8_t height_current = height_target;
 boolean lit = true;
 boolean on = true;
 
@@ -81,7 +82,7 @@ void setup() {
   client.enableLastWillMessage(BASIC_TOPIC "connected", "0", mqtt_retained); // You can activate the retain flag by setting the third parameter to true
 }
 
-float calc_height_to_percentage() { return height * HEIGHT_PERCENTAGE_FACTOR; }
+float calc_height_to_percentage() { return height_target * HEIGHT_PERCENTAGE_FACTOR; }
 uint8_t calc_height_from_percentage(float percentage) { return percentage / HEIGHT_PERCENTAGE_FACTOR; }
 
 void onConnectionEstablished() {
@@ -131,9 +132,9 @@ void onConnectionEstablished() {
   client.subscribe(BASIC_TOPIC_SET "height", [](const String &payload) {
     int parsed = strtol(payload.c_str(), 0, 10);
     int newValue = max(0, min(HEIGHT_MAX, parsed));
-    if (height != newValue) {
-      height = newValue;
-      client.publish(BASIC_TOPIC_STATUS "height", String(height), mqtt_retained);
+    if (height_target != newValue) {
+      height_target = newValue;
+      client.publish(BASIC_TOPIC_STATUS "height", String(height_target), mqtt_retained);
       client.publish(BASIC_TOPIC_STATUS "height-percentage", String(calc_height_to_percentage()), mqtt_retained);
     }
   });
@@ -142,9 +143,9 @@ void onConnectionEstablished() {
     float parsed = strtod(payload.c_str(), NULL);
     float percentage = max(0.0f, min(100.0f, parsed));
     int newValue = calc_height_from_percentage(percentage);
-    if (height != newValue) {
-      height = newValue;
-      client.publish(BASIC_TOPIC_STATUS "height", String(height), mqtt_retained);
+    if (height_target != newValue) {
+      height_target = newValue;
+      client.publish(BASIC_TOPIC_STATUS "height", String(height_target), mqtt_retained);
       client.publish(BASIC_TOPIC_STATUS "height-percentage", String(calc_height_to_percentage()), mqtt_retained);
     }
   });
@@ -153,7 +154,7 @@ void onConnectionEstablished() {
   client.publish(BASIC_TOPIC_STATUS "hue", String(hue), mqtt_retained);
   client.publish(BASIC_TOPIC_STATUS "sat", String(sat), mqtt_retained);
   client.publish(BASIC_TOPIC_STATUS "bri", String(bri), mqtt_retained);
-  client.publish(BASIC_TOPIC_STATUS "height", String(height), mqtt_retained);
+  client.publish(BASIC_TOPIC_STATUS "height", String(height_target), mqtt_retained);
   client.publish(BASIC_TOPIC_STATUS "height-percentage", String(calc_height_to_percentage()), mqtt_retained);
   client.publish(BASIC_TOPIC_STATUS "lit", lit ? "1" : "0", mqtt_retained);
   client.publish(BASIC_TOPIC_STATUS "on", on ? "1" : "0", mqtt_retained);
@@ -170,7 +171,7 @@ void drawHorizontalLine(int16_t y, int16_t x_start, int16_t x_end, uint16_t colo
 void drawCandle(uint8_t brightness) {
   auto candle_color = ColorHSV(hue * 182, sat * 2.55, brightness);
 
-  for (uint16_t y = 0; y < height; y++) {
+  for (uint16_t y = 0; y < height_current; y++) {
     drawHorizontalLine(y, 0, 7, candle_color);
   }
 
@@ -191,7 +192,7 @@ void drawCandle(uint8_t brightness) {
         }
       }
 
-      drawHorizontalLine(height + i, left, left + 1, flame_color);
+      drawHorizontalLine(height_current + i, left, left + 1, flame_color);
     }
   }
 }
@@ -202,6 +203,12 @@ void loop() {
   auto brightness = (bri + BRIGHTNESS_OFFSET) * on;
 
   digitalWrite(PIN_ON, on ? HIGH : LOW);
+
+  if (height_target > height_current) {
+    height_current++;
+  } else if (height_target < height_current) {
+    height_current--;
+  }
 
   matrix.fillScreen(0);
   drawCandle(brightness);
