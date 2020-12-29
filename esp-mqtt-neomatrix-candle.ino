@@ -60,7 +60,7 @@ const float HEIGHT_PERCENTAGE_FACTOR = 100.0 / HEIGHT_MAX;
 
 uint16_t hue = 0;
 uint8_t sat = 100;
-uint8_t bri = 20;
+uint8_t bri = 15;
 uint8_t height_target = 10;
 uint8_t height_current = height_target;
 boolean lit = true;
