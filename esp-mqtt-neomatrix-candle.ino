@@ -1,6 +1,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
+#include <ArduinoOTA.h>
 #include <credentials.h>
 #include <EspMQTTClient.h>
 
@@ -76,6 +77,9 @@ void setup() {
 
   matrix.setCursor(0, 0);
   matrix.show();
+
+  ArduinoOTA.setHostname(CLIENT_NAME);
+  ArduinoOTA.begin();
 
   // Optional functionnalities of EspMQTTClient
   client.enableDebuggingMessages();                                          // Enable debugging messages sent to serial output
@@ -199,6 +203,7 @@ void drawCandle(uint8_t brightness) {
 
 void loop() {
   client.loop();
+  ArduinoOTA.handle();
 
   auto brightness = (bri + BRIGHTNESS_OFFSET) * on;
 
